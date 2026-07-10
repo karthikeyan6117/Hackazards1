@@ -1,34 +1,60 @@
 # Hackazards
 
-A full-stack monitoring platform with AI-powered incident analysis.
+AI-powered monitoring and incident intelligence platform. Transforms passive alerting into active incident analysis by automatically detecting failures, diagnosing root causes with an LLM, generating postmortems, and learning from historical incidents.
 
-## Project Structure
+## Architecture
 
 ```
-Hackazards/
-├── backend/                 # FastAPI backend
+hackhazards/
+├── backend/                          FastAPI + SQLAlchemy + Groq AI
 │   ├── app/
-│   │   ├── ai/             # AI incident analysis module
-│   │   ├── api/            # API routes
-│   │   ├── core/           # Configuration and utilities
-│   │   ├── db/             # Database setup
-│   │   ├── models/         # SQLAlchemy models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   └── main.py         # FastAPI application
+│   │   ├── ai/                       AI incident analysis module
+│   │   │   ├── agent.py              Core LLM analysis logic
+│   │   │   ├── groq_client.py        Groq SDK singleton
+│   │   │   ├── memory.py             RAG-lite historical similarity
+│   │   │   ├── postmortem.py         Postmortem document generator
+│   │   │   ├── prompts.py            System & user prompt templates
+│   │   │   ├── report_generator.py   Multi-format report output
+│   │   │   ├── routes.py             /api/ai/* endpoints
+│   │   │   └── schemas.py            IncidentRequest, AIReport models
+│   │   ├── api/                      REST API routes
+│   │   │   ├── dashboard.py          GET /api/dashboard
+│   │   │   ├── endpoints.py          CRUD /api/endpoints
+│   │   │   ├── incidents.py          GET /api/incidents
+│   │   │   └── status.py             GET /api/status
+│   │   ├── core/
+│   │   │   ├── config.py             Pydantic Settings
+│   │   │   └── scheduler.py          APScheduler monitoring loop
+│   │   ├── db/
+│   │   │   └── database.py           SQLAlchemy engine, sessions
+│   │   ├── models/                   ORM models
+│   │   │   ├── endpoint.py           Endpoint
+│   │   │   ├── incident.py           Incident, TimelineEvent
+│   │   │   └── monitoring_result.py  MonitoringResult
+│   │   ├── schemas/                  Pydantic request/response
+│   │   │   ├── endpoint.py
+│   │   │   └── incident.py
+│   │   ├── services/
+│   │   │   ├── incident_service.py   Incident lifecycle management
+│   │   │   └── monitor.py            HTTP health checks
+│   │   └── main.py                   App entrypoint
 │   ├── requirements.txt
-│   ├── .env.example
-│   └── README.md
+│   └── .env.example
 │
-├── monitoring-platform/     # Next.js frontend
-│   ├── app/                # Next.js app directory
-│   ├── components/         # React components
-│   ├── public/             # Static assets
-│   ├── types/              # TypeScript types
+├── monitoring-platform/              Next.js 16 + React 19 + Tailwind v4
+│   ├── app/                          App Router pages
+│   │   ├── page.tsx                  Dashboard
+│   │   ├── incidents/page.tsx        Incident list
+│   │   ├── incidents/[id]/page.tsx   Incident detail
+│   │   ├── status/page.tsx           Public status page
+│   │   └── settings/page.tsx         Alert configuration
+│   ├── components/                   Reusable UI components
+│   │   ├── badges.tsx                StatusBadge, SeverityBadge
+│   │   └── endpoint-card.tsx         EndpointCard
+│   ├── types/index.ts                TypeScript interfaces
 │   ├── package.json
-│   └── ...
+│   └── tsconfig.json
 │
-├── .gitignore
 └── README.md
 ```
 
@@ -38,14 +64,23 @@ Hackazards/
 
 ```bash
 cd backend
-python -m venv .venv
-.venv\Scripts\activate  # Windows
+python -m venv venv
+
+# Activate
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
 pip install -r requirements.txt
 cp .env.example .env
+# Edit .env and set GROQ_API_KEY
+
 uvicorn app.main:app --reload
 ```
 
-The backend will be available at `http://localhost:8000`
+API available at `http://localhost:8000`  
+Interactive docs at `http://localhost:8000/docs`
 
 ### Frontend
 
@@ -55,26 +90,263 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:3000`
+Frontend available at `http://localhost:3000`
 
-## API Endpoints
+## Environment Variables
 
-### AI Module
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GROQ_API_KEY` | *required* | API key for Groq LLM |
+| `MODEL_NAME` | `llama-3.3-70b-versatile` | Groq model to use |
+| `DATABASE_URL` | `sqlite:///./hackazards.db` | Database connection string |
+| `SCHEDULER_INTERVAL_SECONDS` | `60` | Monitoring check interval |
+| `REQUEST_TIMEOUT_SECONDS` | `10` | HTTP request timeout |
+| `UPTIME_WINDOW_HOURS` | `24` | Window for uptime calculation |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
 
-- `GET /api/ai/health` - Health check
-- `POST /api/ai/analyze` - Analyze incident
-- `POST /api/ai/report` - Generate report
+## How It Works
 
-### Core API
+1. **Add endpoints** via `POST /api/endpoints`
+2. **Scheduler** checks each endpoint every 60s via HTTP GET
+3. **Monitoring results** (status code, latency) are stored
+4. **Incidents auto-create** when a check fails (5xx, timeout, error)
+5. **Incidents auto-resolve** when the endpoint recovers
+6. **AI analysis** is triggered on demand via `/api/ai/analyze` — the agent:
+   - Retrieves similar historical incidents from the database
+   - Builds a context-rich prompt with logs, metrics, deployment info, and past incidents
+   - Calls Groq LLM to produce a structured root cause analysis
+7. **Postmortem generation** via `/api/ai/postmortem` produces a full Markdown document
+8. **Reports** via `/api/ai/report` output analysis as JSON, Markdown, or plain text
 
-- `GET /api/health` - API health check
-- Dashboard, endpoints, and incidents routes
+## API Reference
+
+### Health
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | API health check |
+
+### Endpoints CRUD
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/endpoints` | List all monitored endpoints |
+| POST | `/api/endpoints` | Add a new endpoint |
+| PUT | `/api/endpoints/{id}` | Update endpoint name or URL |
+| DELETE | `/api/endpoints/{id}` | Remove an endpoint |
+
+### Dashboard
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard` | Aggregated metrics (totals, uptime, latency, active incidents) |
+
+### Incidents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/incidents` | List all incidents (newest first) |
+| GET | `/api/incidents/{id}` | Incident detail with timeline, evidence, recommendations |
+
+### Status Page
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/status` | Public status data for all endpoints |
+
+### AI Analysis
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/ai/health` | AI service health check |
+| POST | `/api/ai/analyze` | Analyze incident, returns `AIReport` JSON |
+| POST | `/api/ai/report` | Analyze + generate formatted report (JSON/Markdown/text) |
+| POST | `/api/ai/postmortem` | Analyze + generate full Markdown postmortem document |
+
+## AI Module
+
+### Analysis Pipeline
+
+```
+IncidentRequest
+    │
+    ▼
+┌─────────────────────────┐
+│  memory.py              │  Retrieve similar historical incidents
+│  find_similar_incidents()│  from SQLite via weighted field matching
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  prompts.py             │  Build context-rich prompt with incident
+│  build_incident_prompt() │  details + historical incidents
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  agent.py               │  Call Groq LLM (llama-3.3-70b-versatile)
+│  analyze_incident()     │  Parse JSON response into AIReport
+└───────────┬─────────────┘
+            │
+            ▼
+         AIReport
+            │
+    ┌───────┴───────┐
+    ▼               ▼
+  /analyze      /postmortem
+ (JSON)        (Markdown document)
+```
+
+### Historical Memory (RAG-lite)
+
+No vector database or external embeddings. Similarity is computed via weighted field matching:
+
+| Signal | Weight | Method |
+|--------|--------|--------|
+| Same endpoint URL | 40 | Exact match with partial-prefix fallback |
+| Same HTTP status code | 20 | Exact match; half credit for same class (5xx) |
+| Error message overlap | 15 | Jaccard token similarity |
+| Same service name | 15 | Substring match in title/description |
+| Similar latency range | 5 | Ratio-based; within 50% threshold |
+| Same severity | 5 | Exact or adjacent severity match |
+
+Top 3 matches are injected into the AI prompt. The system prompt instructs the LLM to compare the current incident with historical ones, identify patterns, and reference previous resolutions.
+
+### Postmortem Generator
+
+Two-pass pipeline:
+1. **Analysis pass** — produces a structured `AIReport` via the standard analysis flow
+2. **Postmortem pass** — feeds the analysis results plus all incident context to generate a Markdown document with sections: Incident Summary, Timeline, Root Cause, Customer Impact, Evidence, Immediate Actions, Long-Term Preventive Actions, Estimated Resolution Time, Lessons Learned, Future Improvements
+
+### Report Formats
+
+| Format | Content |
+|--------|---------|
+| `json` | Structured dict with all AIReport fields |
+| `markdown` | Formatted Markdown document |
+| `text` | Plain text with section headers |
+
+## Database Schema
+
+```
+┌──────────────────┐       ┌────────────────────────┐
+│    endpoints      │       │   monitoring_results    │
+├──────────────────┤       ├────────────────────────┤
+│ id (PK)          │◄──────│ endpoint_id (FK)        │
+│ name              │       │ id (PK)                 │
+│ url               │       │ status_code             │
+│ status            │       │ latency (ms)            │
+│ uptime (%)        │       │ success (bool)          │
+│ average_latency   │       │ checked_at              │
+│ created_at        │       └────────────────────────┘
+│ updated_at        │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐       ┌──────────────────┐
+│    incidents      │       │  timeline_events  │
+├──────────────────┤       ├──────────────────┤
+│ id (PK)          │◄──────│ incident_id (FK) │
+│ endpoint_id (FK) │       │ id (PK)          │
+│ title             │       │ timestamp         │
+│ description       │       │ event             │
+│ severity          │       │ type              │
+│ status            │       └──────────────────┘
+│ root_cause        │
+│ confidence_score  │
+│ evidence          │
+│ recommendations   │
+│ started_at        │
+│ resolved_at       │
+└──────────────────┘
+```
+
+### Status Rules
+
+| Condition | Endpoint Status |
+|-----------|-----------------|
+| HTTP 200-399 | `up` |
+| HTTP 400-499 | `degraded` |
+| HTTP >= 500 | `down` |
+| Timeout | `down` |
+| Request failure | `down` |
+
+## Sample Requests
+
+```bash
+# Add an endpoint to monitor
+curl -X POST http://localhost:8000/api/endpoints \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Payment API", "url": "https://api.example.com/payments"}'
+
+# List all endpoints
+curl http://localhost:8000/api/endpoints
+
+# Get dashboard metrics
+curl http://localhost:8000/api/dashboard
+
+# Analyze an incident with AI
+curl -X POST http://localhost:8000/api/ai/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "incident_id": "INC-001",
+    "endpoint": "https://api.example.com/payments",
+    "status_code": 500,
+    "latency": 5000.0,
+    "error_message": "Connection pool exhausted",
+    "logs": ["pool timeout at 5000ms", "max_connections reached"],
+    "deployment_info": "v2.3.1 deployed 2026-07-10 10:00",
+    "system_metrics": {"cpu": 95.0, "memory": 88.0},
+    "service_name": "payment-api",
+    "environment": "production"
+  }'
+
+# Generate a postmortem document
+curl -X POST http://localhost:8000/api/ai/postmortem \
+  -H "Content-Type: application/json" \
+  -d '{ ... same payload as above ... }'
+
+# Generate a report in Markdown format
+curl -X POST "http://localhost:8000/api/ai/report?fmt=markdown" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same payload as above ... }'
+```
+
+## Frontend Pages
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Dashboard | Metrics grid, active incidents, endpoint cards |
+| `/incidents` | Incident List | Active and resolved incidents with AI scores |
+| `/incidents/[id]` | Incident Detail | Full AI analysis, evidence, timeline, recommendations |
+| `/status` | Status Page | Public-facing service health overview |
+| `/settings` | Settings | Alert channel config (email, Slack, Discord), quiet hours |
 
 ## Tech Stack
 
-- **Backend**: FastAPI, SQLAlchemy, Pydantic, Groq SDK
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **Database**: SQLite (development)
+| Layer | Technology |
+|-------|------------|
+| Backend framework | FastAPI |
+| ORM | SQLAlchemy 2.0 (mapped_column style) |
+| Validation | Pydantic v2 |
+| Database | SQLite (WAL mode, swappable to PostgreSQL) |
+| Scheduler | APScheduler |
+| HTTP client | httpx (async) |
+| LLM | Groq SDK — `llama-3.3-70b-versatile` |
+| Frontend framework | Next.js 16 (App Router) |
+| UI | React 19, TypeScript, Tailwind CSS v4 |
+
+## Project Status
+
+| Feature | Status |
+|---------|--------|
+| Endpoint monitoring + auto-incident lifecycle | Done |
+| AI root cause analysis | Done |
+| Historical incident memory (RAG-lite) | Done |
+| AI postmortem generation | Done |
+| Multi-format report export | Done |
+| Dashboard, incidents, status pages | Done |
+| Frontend-backend API integration | Mock data (frontend) |
 
 ## License
 
