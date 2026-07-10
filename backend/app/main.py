@@ -10,6 +10,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.endpoints import router as endpoints_router
 from app.api.incidents import router as incidents_router
 from app.api.status import router as status_router
+from app.api.users import router as users_router
 from app.core.config import settings
 from app.core.scheduler import start_scheduler, stop_scheduler
 from app.db.database import init_db
@@ -50,6 +51,7 @@ app.include_router(dashboard_router)
 app.include_router(incidents_router)
 app.include_router(status_router)
 app.include_router(ai_router)
+app.include_router(users_router)
 
 
 @app.get("/api/health")

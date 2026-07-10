@@ -34,7 +34,7 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    from app.models import Endpoint, Incident, MonitoringResult, TimelineEvent  # noqa: F401
+    from app.models import Endpoint, Incident, MonitoringResult, TimelineEvent, User, Item  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")

@@ -7,11 +7,13 @@ from pydantic import BaseModel, Field, HttpUrl
 class EndpointCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     url: str = Field(..., min_length=1, max_length=2048)
+    check_interval_seconds: int = Field(default=60, ge=10)
 
 
 class EndpointUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     url: Optional[str] = Field(None, min_length=1, max_length=2048)
+    check_interval_seconds: Optional[int] = Field(None, ge=10)
 
 
 class EndpointResponse(BaseModel):
@@ -22,6 +24,7 @@ class EndpointResponse(BaseModel):
     uptime: float
     lastChecked: Optional[str] = None
     latency: float
+    check_interval_seconds: int
 
     class Config:
         from_attributes = True

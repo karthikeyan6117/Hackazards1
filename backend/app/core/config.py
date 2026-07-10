@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./hackazards.db"
 
-    SCHEDULER_INTERVAL_SECONDS: int = 60
+    SCHEDULER_INTERVAL_SECONDS: int = 10
     REQUEST_TIMEOUT_SECONDS: int = 10
     UPTIME_WINDOW_HOURS: int = 24
 

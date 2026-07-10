@@ -27,6 +27,7 @@ def _endpoint_to_response(endpoint: Endpoint) -> EndpointResponse:
         uptime=endpoint.uptime,
         lastChecked=last_checked,
         latency=endpoint.average_latency,
+        check_interval_seconds=endpoint.check_interval_seconds,
     )
 
 
@@ -50,6 +51,7 @@ def create_endpoint(body: EndpointCreate, db: Session = Depends(get_db)):
         status="unknown",
         uptime=100.0,
         average_latency=0.0,
+        check_interval_seconds=body.check_interval_seconds,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -84,6 +86,8 @@ def update_endpoint(
                 detail=f"Endpoint with URL '{body.url}' already exists",
             )
         endpoint.url = body.url
+    if body.check_interval_seconds is not None:
+        endpoint.check_interval_seconds = body.check_interval_seconds
     endpoint.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(endpoint)

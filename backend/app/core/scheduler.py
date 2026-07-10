@@ -20,11 +20,20 @@ async def scheduled_monitor_job() -> None:
     db = SessionLocal()
     try:
         from app.models import Endpoint
+        from app.services.monitor import check_endpoint, get_latest_monitoring_result
+        from datetime import datetime, timezone
 
         endpoints = db.query(Endpoint).all()
+        now = datetime.now(timezone.utc)
+
         for endpoint in endpoints:
             try:
-                from app.services.monitor import check_endpoint
+                last_result = get_latest_monitoring_result(db, endpoint.id)
+                last_checked = last_result.checked_at if last_result else endpoint.created_at
+                
+                # Check if elapsed time is greater than or equal to check_interval_seconds
+                if last_checked and (now - last_checked).total_seconds() < endpoint.check_interval_seconds:
+                    continue
 
                 result = await check_endpoint(db, endpoint)
                 handle_monitoring_result(db, endpoint, result)

@@ -15,6 +15,7 @@ class Endpoint(Base):
     status: Mapped[str] = mapped_column(String(50), default="unknown")
     uptime: Mapped[float] = mapped_column(Float, default=100.0)
     average_latency: Mapped[float] = mapped_column(Float, default=0.0)
+    check_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )
