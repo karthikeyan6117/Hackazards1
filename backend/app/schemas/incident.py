@@ -13,6 +13,13 @@ class TimelineEventSchema(BaseModel):
         from_attributes = True
 
 
+class IncidentCreate(BaseModel):
+    endpoint_id: int
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    severity: str = Field(default="critical")
+
+
 class IncidentResponse(BaseModel):
     id: str
     endpointId: str

@@ -1,12 +1,14 @@
 import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.endpoint import Endpoint
 from app.models.incident import Incident, TimelineEvent
-from app.schemas.incident import IncidentResponse, TimelineEventSchema
+from app.schemas.incident import IncidentResponse, TimelineEventSchema, IncidentCreate
 
 logger = logging.getLogger(__name__)
 
@@ -72,3 +74,38 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
             detail=f"Incident with id '{incident_id}' not found",
         )
     return _incident_to_response(incident)
+
+
+@router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
+def create_incident(body: IncidentCreate, db: Session = Depends(get_db)):
+    endpoint = db.query(Endpoint).filter(Endpoint.id == body.endpoint_id).first()
+    if not endpoint:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Endpoint with id '{body.endpoint_id}' not found",
+        )
+    
+    incident = Incident(
+        endpoint_id=endpoint.id,
+        title=body.title,
+        description=body.description,
+        severity=body.severity,
+        status="open",
+        started_at=datetime.now(timezone.utc),
+    )
+    db.add(incident)
+    db.flush()
+
+    timeline = TimelineEvent(
+        incident_id=incident.id,
+        timestamp=datetime.now(timezone.utc),
+        event=f"Incident manually created: {body.title}",
+        type="detection",
+    )
+    db.add(timeline)
+    db.commit()
+    db.refresh(incident)
+    
+    logger.info("Manually created incident #%d for endpoint %s", incident.id, endpoint.name)
+    return _incident_to_response(incident)
+

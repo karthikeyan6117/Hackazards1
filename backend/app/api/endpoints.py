@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.endpoint import Endpoint
-from app.schemas.endpoint import EndpointCreate, EndpointResponse, EndpointUpdate
+from app.schemas.endpoint import EndpointCreate, EndpointResponse, EndpointUpdate, MonitoringResultResponse
+from app.models.monitoring_result import MonitoringResult
 
 logger = logging.getLogger(__name__)
 
@@ -106,3 +107,23 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     db.delete(endpoint)
     db.commit()
     logger.info("Deleted endpoint #%d", endpoint_id)
+
+
+@router.get("/{endpoint_id}/results", response_model=list[MonitoringResultResponse])
+def list_endpoint_results(endpoint_id: int, db: Session = Depends(get_db)):
+    endpoint = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
+    if not endpoint:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Endpoint with id '{endpoint_id}' not found",
+        )
+    
+    results = (
+        db.query(MonitoringResult)
+        .filter(MonitoringResult.endpoint_id == endpoint_id)
+        .order_by(MonitoringResult.checked_at.desc())
+        .limit(100)
+        .all()
+    )
+    return results
+

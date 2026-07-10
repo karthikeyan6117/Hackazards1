@@ -40,3 +40,16 @@ class EndpointStatusResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MonitoringResultResponse(BaseModel):
+    id: int
+    endpoint_id: int
+    status_code: Optional[int] = None
+    latency: float
+    success: bool
+    checked_at: datetime
+
+    class Config:
+        from_attributes = True
+
