@@ -9,9 +9,6 @@ def generate_report(report: AIReport) -> Dict[str, Any]:
     """
     Generate a formatted report from an AIReport.
 
-    This is a mock implementation that formats the report as a dictionary.
-    Future versions will support JSON and PDF export.
-
     Args:
         report: The AI-generated incident report.
 
@@ -24,8 +21,13 @@ def generate_report(report: AIReport) -> Dict[str, Any]:
         "data": {
             "summary": report.summary,
             "root_cause": report.root_cause,
+            "severity": report.severity,
             "confidence": report.confidence,
+            "possible_impact": report.possible_impact,
             "evidence": report.evidence,
+            "immediate_actions": report.immediate_actions,
+            "preventive_actions": report.preventive_actions,
+            "estimated_resolution_time": report.estimated_resolution_time,
             "recommendations": report.recommendations,
         },
         "metadata": {

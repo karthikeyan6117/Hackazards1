@@ -1,12 +1,10 @@
 """Groq client configuration and initialization."""
 
-import os
 from typing import Optional
 
-from dotenv import load_dotenv
 from groq import Groq
 
-load_dotenv()
+from app.core.config import settings
 
 _client: Optional[Groq] = None
 
@@ -19,14 +17,11 @@ def get_groq_client() -> Groq:
         Groq: Initialized Groq client.
 
     Raises:
-        ValueError: If GROQ_API_KEY environment variable is not set.
+        ValueError: If GROQ_API_KEY is not configured.
     """
     global _client
 
     if _client is None:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError("GROQ_API_KEY environment variable is not set")
-        _client = Groq(api_key=api_key)
+        _client = Groq(api_key=settings.GROQ_API_KEY)
 
     return _client
