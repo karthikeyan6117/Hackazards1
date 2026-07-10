@@ -4,115 +4,47 @@ import { DashboardMetrics, Endpoint, Incident } from '@/types';
 import { EndpointCard } from '@/components/endpoint-card';
 import Link from 'next/link';
 
-// Fixed timestamp to avoid hydration mismatch
-const NOW = '2026-06-23T08:24:38.000Z';
-
-// Mock data for demonstration
-const mockMetrics: DashboardMetrics = {
-  totalEndpoints: 8,
-  activeIncidents: 2,
-  upEndpoints: 6,
-  downEndpoints: 1,
-  avgLatency: 142,
-  uptimePercentage: 99.2,
-};
-
-const mockEndpoints: Endpoint[] = [
-  {
-    id: '1',
-    name: 'API Server - Production',
-    url: 'https://api.example.com/health',
-    status: 'up',
-    uptime: 99.9,
-    lastChecked: NOW,
-    latency: 120,
-  },
-  {
-    id: '2',
-    name: 'Web Application',
-    url: 'https://app.example.com',
-    status: 'up',
-    uptime: 99.8,
-    lastChecked: NOW,
-    latency: 145,
-  },
-  {
-    id: '3',
-    name: 'Database Primary',
-    url: 'https://db-primary.internal/health',
-    status: 'degraded',
-    uptime: 98.5,
-    lastChecked: NOW,
-    latency: 250,
-  },
-  {
-    id: '4',
-    name: 'CDN Edge Server',
-    url: 'https://cdn.example.com/status',
-    status: 'down',
-    uptime: 97.2,
-    lastChecked: NOW,
-    latency: 0,
-  },
-];
-
-const mockIncidents: Incident[] = [
-  {
-    id: '1',
-    endpointId: '4',
-    title: 'CDN Edge Server Outage',
-    description: 'CDN server in US-WEST region experiencing connectivity issues',
-    severity: 'critical',
-    status: 'investigating',
-    startTime: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-    rootCause: 'Load balancer misconfiguration detected in recent deployment',
-    confidenceScore: 0.87,
-    evidence: [
-      'High CPU utilization on edge nodes',
-      'Recent deployment at 2024-06-23 14:30 UTC',
-      'Correlated with increase in 502 errors',
-    ],
-    recommendations: [
-      'Rollback to previous stable deployment',
-      'Investigate load balancer configuration changes',
-      'Implement automated rollback on error threshold',
-    ],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-        event: 'Incident detected: CDN latency spike',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 2700000).toISOString(),
-        event: 'AI investigation started',
-        type: 'investigation',
-      },
-    ],
-  },
-  {
-    id: '2',
-    endpointId: '3',
-    title: 'Database Latency Degradation',
-    description: 'Primary database experiencing elevated query times',
-    severity: 'warning',
-    status: 'open',
-    startTime: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-    rootCause: 'Long-running query blocking connection pool',
-    confidenceScore: 0.92,
-    evidence: ['Query execution time: 45s average', 'Connection pool saturation at 95%'],
-    recommendations: ['Optimize slow query', 'Increase connection pool size', 'Implement query timeout'],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-        event: 'Latency spike detected',
-        type: 'detection',
-      },
-    ],
-  },
-];
+import { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [metricsRes, endpointsRes, incidentsRes] = await Promise.all([
+          fetch('http://localhost:8000/api/dashboard'),
+          fetch('http://localhost:8000/api/endpoints'),
+          fetch('http://localhost:8000/api/incidents'),
+        ]);
+
+        if (metricsRes.ok) setMetrics(await metricsRes.json());
+        if (endpointsRes.ok) setEndpoints(await endpointsRes.json());
+        if (incidentsRes.ok) setIncidents(await incidentsRes.json());
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+    // Optional: Set up polling
+    const intervalId = setInterval(fetchData, 10000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  if (loading || !metrics) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading dashboard...</div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -139,15 +71,15 @@ export default function DashboardPage() {
           {/* Total Endpoints */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Endpoints</p>
-            <p className="text-4xl font-bold text-gray-900 mt-2">{mockMetrics.totalEndpoints}</p>
+            <p className="text-4xl font-bold text-gray-900 mt-2">{metrics.totalEndpoints}</p>
           </div>
 
           {/* Uptime Percentage */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Overall Uptime</p>
             <div className="flex items-end gap-4 mt-2">
-              <p className="text-4xl font-bold text-green-600">{mockMetrics.uptimePercentage}%</p>
-              <p className="text-sm text-gray-500 pb-1">Last 30 days</p>
+              <p className="text-4xl font-bold text-green-600">{metrics.uptimePercentage}%</p>
+              <p className="text-sm text-gray-500 pb-1">Last 24 hours</p>
             </div>
           </div>
 
@@ -155,7 +87,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Active Incidents</p>
             <div className="flex items-end gap-4 mt-2">
-              <p className="text-4xl font-bold text-red-600">{mockMetrics.activeIncidents}</p>
+              <p className="text-4xl font-bold text-red-600">{metrics.activeIncidents}</p>
               <Link href="/incidents" className="text-sm text-blue-600 hover:underline pb-1">
                 View All
               </Link>
@@ -165,24 +97,24 @@ export default function DashboardPage() {
           {/* Up Endpoints */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Operational</p>
-            <p className="text-4xl font-bold text-green-600 mt-2">{mockMetrics.upEndpoints}</p>
+            <p className="text-4xl font-bold text-green-600 mt-2">{metrics.upEndpoints}</p>
           </div>
 
           {/* Down Endpoints */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Down</p>
-            <p className="text-4xl font-bold text-red-600 mt-2">{mockMetrics.downEndpoints}</p>
+            <p className="text-4xl font-bold text-red-600 mt-2">{metrics.downEndpoints}</p>
           </div>
 
           {/* Average Latency */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Avg Latency</p>
-            <p className="text-4xl font-bold text-blue-600 mt-2">{mockMetrics.avgLatency}ms</p>
+            <p className="text-4xl font-bold text-blue-600 mt-2">{metrics.avgLatency}ms</p>
           </div>
         </div>
 
         {/* Recent Incidents Section */}
-        {mockIncidents.length > 0 && (
+        {incidents.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">Active Incidents</h2>
@@ -191,7 +123,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-4">
-              {mockIncidents.map((incident) => (
+              {incidents.slice(0, 5).map((incident) => (
                 <Link key={incident.id} href={`/incidents/${incident.id}`}>
                   <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow cursor-pointer">
                     <div className="flex items-start justify-between">
@@ -240,8 +172,9 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockEndpoints.map((endpoint) => (
-              <EndpointCard key={endpoint.id} endpoint={endpoint} recentIncidents={mockIncidents.filter((i) => i.endpointId === endpoint.id)} />
+            {endpoints.map((endpoint) => (
+              <EndpointCard key={endpoint.id} endpoint={endpoint} recentIncidents={incidents.filter((i) => i.endpointId === endpoint.id)} />
+
             ))}
           </div>
         </div>
