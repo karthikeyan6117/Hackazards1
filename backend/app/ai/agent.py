@@ -3,13 +3,16 @@
 import json
 import logging
 import time
+from typing import List, Optional
 
 from fastapi import HTTPException
 
 from app.ai.groq_client import get_groq_client
+from app.ai.memory import IncidentSummary, find_similar_incidents
 from app.ai.prompts import SYSTEM_PROMPT, build_incident_prompt
 from app.ai.schemas import AIReport, IncidentRequest
 from app.core.config import settings
+from app.db.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,9 @@ def analyze_incident(request: IncidentRequest) -> AIReport:
     """
     Analyze an incident using the Groq LLM and return a structured report.
 
+    Retrieves similar historical incidents from the database and includes
+    them as context to improve analysis quality.
+
     Args:
         request: The incident request containing incident details.
 
@@ -45,7 +51,8 @@ def analyze_incident(request: IncidentRequest) -> AIReport:
     Raises:
         HTTPException: 503 if the AI service is unavailable.
     """
-    user_prompt = build_incident_prompt(request)
+    similar_incidents = _retrieve_similar_incidents(request)
+    user_prompt = build_incident_prompt(request, similar_incidents)
 
     logger.info(
         "Incoming incident: incident_id=%s endpoint=%s status_code=%d latency=%.2fms",
@@ -93,3 +100,28 @@ def analyze_incident(request: IncidentRequest) -> AIReport:
                 status_code=503,
                 detail="AI analysis service temporarily unavailable.",
             ) from retry_exc
+
+
+def _retrieve_similar_incidents(
+    request: IncidentRequest,
+) -> Optional[List[IncidentSummary]]:
+    """
+    Retrieve similar historical incidents from the database.
+
+    Silently returns None on any database error so the analysis
+    can proceed without memory context.
+
+    Args:
+        request: The current incident request.
+
+    Returns:
+        List of similar IncidentSummary objects, or None if retrieval fails.
+    """
+    db = SessionLocal()
+    try:
+        return find_similar_incidents(request, db)
+    except Exception as exc:
+        logger.warning("Memory retrieval failed (continuing without): %s", exc)
+        return None
+    finally:
+        db.close()

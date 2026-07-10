@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.ai.agent import analyze_incident
+from app.ai.postmortem import generate_postmortem
 from app.ai.report_generator import generate_report
 from app.ai.schemas import AIReport, IncidentRequest
 
@@ -48,3 +49,21 @@ def get_report(request: IncidentRequest) -> dict:
     """
     report = analyze_incident(request)
     return generate_report(report)
+
+
+@router.post("/postmortem")
+def postmortem(request: IncidentRequest) -> dict:
+    """
+    Generate a professional postmortem document after incident analysis.
+
+    Analyzes the incident, then produces a comprehensive Markdown postmortem.
+
+    Args:
+        request: Incident details for analysis.
+
+    Returns:
+        dict: Postmortem document with markdown key.
+    """
+    analysis = analyze_incident(request)
+    markdown = generate_postmortem(request, analysis)
+    return {"markdown": markdown}

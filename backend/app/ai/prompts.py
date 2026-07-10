@@ -1,5 +1,8 @@
 """Prompt templates for AI incident analysis."""
 
+from typing import List, Optional
+
+from app.ai.memory import IncidentSummary
 from app.ai.schemas import IncidentRequest
 
 SYSTEM_PROMPT: str = (
@@ -9,6 +12,10 @@ SYSTEM_PROMPT: str = (
     "including logs, system metrics, deployment history, and previous incidents. "
     "Determine the most probable root cause, explain your reasoning, "
     "and provide actionable remediation steps.\n\n"
+    "If similar previous incidents are provided, compare the current incident "
+    "with them. Reference whether the current incident follows a known pattern, "
+    "and whether previous resolutions or root causes are relevant. Use this "
+    "historical context to improve your analysis confidence and recommendations.\n\n"
     "You MUST return ONLY valid JSON with no additional text, markdown, or "
     "code fences. The JSON must match this exact schema:\n"
     "{\n"
@@ -37,12 +44,57 @@ SYSTEM_PROMPT: str = (
 )
 
 
-def build_incident_prompt(request: IncidentRequest) -> str:
+def build_similar_incidents_section(
+    similar_incidents: List[IncidentSummary],
+) -> str:
+    """
+    Format similar historical incidents into a prompt section.
+
+    Args:
+        similar_incidents: List of IncidentSummary objects from memory retrieval.
+
+    Returns:
+        A formatted string section, or empty string if no incidents.
+    """
+    if not similar_incidents:
+        return ""
+
+    lines: list[str] = []
+    lines.append("## Similar Previous Incidents")
+    lines.append(
+        "The following historical incidents are similar to the current one. "
+        "Use them to identify patterns, reuse known root causes, and "
+        "reference previous resolutions.\n"
+    )
+
+    for i, inc in enumerate(similar_incidents, 1):
+        lines.append(
+            f"### Incident {i} (ID: {inc.incident_id}, similarity: {inc.similarity_score}%)"
+        )
+        lines.append(f"- **Summary:** {inc.summary}")
+        lines.append(f"- **Root Cause:** {inc.root_cause}")
+        lines.append(f"- **Resolution:** {inc.resolution}")
+        lines.append(f"- **Lessons Learned:** {inc.lessons_learned}")
+        lines.append("")
+
+    lines.append(
+        "Compare the current incident with the above. If a similar root cause "
+        "or resolution pattern exists, reference it explicitly in your analysis."
+    )
+
+    return "\n".join(lines)
+
+
+def build_incident_prompt(
+    request: IncidentRequest,
+    similar_incidents: Optional[List[IncidentSummary]] = None,
+) -> str:
     """
     Convert an IncidentRequest into a detailed, context-rich user prompt.
 
     Args:
         request: The incident details to analyze.
+        similar_incidents: Optional list of similar historical incidents.
 
     Returns:
         A formatted prompt string ready to send to the LLM.
@@ -89,6 +141,12 @@ def build_incident_prompt(request: IncidentRequest) -> str:
         lines.append("\n## Previous Incidents")
         for i, inc in enumerate(request.recent_incidents, 1):
             lines.append(f"{i}. {inc}")
+
+    # Inject similar historical incidents from memory
+    if similar_incidents:
+        section = build_similar_incidents_section(similar_incidents)
+        if section:
+            lines.append(f"\n{section}")
 
     lines.append(
         "\n\nAnalyze the above incident using all available evidence. "
