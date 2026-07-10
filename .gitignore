@@ -1,0 +1,32 @@
+# Node
+monitoring-platform/node_modules/
+monitoring-platform/.next/
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/.ruff_cache/
+backend/.pytest_cache/
+backend/.mypy_cache/
+
+# Environment
+backend/.env
+monitoring-platform/.env.local
+
+# SQLite
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
