@@ -3,6 +3,12 @@
 /.next
 /.turbo
 /.cache
+monitoring-platform/node_modules/
+monitoring-platform/.next/
+monitoring-platform/.turbo/
+monitoring-platform/.cache/
+**/__pycache__/
+*.py[cod]
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
