@@ -1,10 +1,11 @@
 'use client';
 
-import { Alert } from '@/types';
-import { useState } from 'react';
+import { Alert, NotificationSettings } from '@/types';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { backendGet, backendPut } from '@/lib/backend';
 
-const mockAlerts: Alert[] = [
+const defaultAlerts: Alert[] = [
   {
     id: '1',
     type: 'email',
@@ -37,11 +38,68 @@ const mockAlerts: Alert[] = [
   },
 ];
 
+const defaultMuteStart = '22:00';
+const defaultMuteEnd = '08:00';
+
 export default function SettingsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+  const [alerts, setAlerts] = useState<Alert[]>(defaultAlerts);
+  const [alertDelay, setAlertDelay] = useState(30);
+  const [quietStart, setQuietStart] = useState(defaultMuteStart);
+  const [quietEnd, setQuietEnd] = useState(defaultMuteEnd);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      setError(null);
+      setLoading(true);
+
+      try {
+        const settings = await backendGet<NotificationSettings>('/api/notifications/settings');
+        setAlerts(settings.channels);
+        setAlertDelay(settings.alert_delay_seconds);
+
+        if (settings.mute_hours.length > 0) {
+          const [start, end] = settings.mute_hours[0].split('-');
+          setQuietStart(start ?? defaultMuteStart);
+          setQuietEnd(end ?? defaultMuteEnd);
+        }
+      } catch {
+        setError('Unable to load notification settings from backend.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSettings();
+  }, []);
 
   const toggleAlert = (id: string) => {
-    setAlerts(alerts.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
+    setAlerts((current) => current.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
+  };
+
+  const saveSettings = async () => {
+    setError(null);
+    setSaving(true);
+    setSavedMessage(null);
+
+    try {
+      const payload: NotificationSettings = {
+        channels: alerts,
+        alert_delay_seconds: alertDelay,
+        mute_hours: [`${quietStart}-${quietEnd}`],
+      };
+      const updated = await backendPut<NotificationSettings>('/api/notifications/settings', payload);
+      setAlerts(updated.channels);
+      setAlertDelay(updated.alert_delay_seconds);
+      setSavedMessage('Settings saved successfully.');
+    } catch {
+      setError('Unable to save notification settings to backend.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -126,11 +184,15 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-2">Alert Delay</label>
                   <p className="text-sm text-gray-600 mb-2">Wait before sending alerts for new incidents</p>
-                  <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option>Immediate (no delay)</option>
-                    <option>30 seconds</option>
-                    <option>1 minute</option>
-                    <option>5 minutes</option>
+                  <select
+                    value={alertDelay}
+                    onChange={(event) => setAlertDelay(Number(event.target.value))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value={0}>Immediate (no delay)</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>1 minute</option>
+                    <option value={300}>5 minutes</option>
                   </select>
                 </div>
 
@@ -141,11 +203,21 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">Start Time</label>
-                      <input type="time" defaultValue="22:00" className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                      <input
+                        type="time"
+                        value={quietStart}
+                        onChange={(event) => setQuietStart(event.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">End Time</label>
-                      <input type="time" defaultValue="08:00" className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                      <input
+                        type="time"
+                        value={quietEnd}
+                        onChange={(event) => setQuietEnd(event.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
                     </div>
                   </div>
                 </div>
@@ -157,8 +229,9 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-4">
                     <input
                       type="number"
-                      defaultValue="15"
-                      className="w-24 px-4 py-2 border border-gray-300 rounded-lg"
+                      value={15}
+                      readOnly
+                      className="w-24 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
                     />
                     <span className="text-gray-600">minutes</span>
                   </div>
@@ -173,9 +246,16 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <button className="mt-8 bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                Save Settings
+              <button
+                className="mt-8 bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-60"
+                type="button"
+                onClick={saveSettings}
+                disabled={loading || saving}
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
               </button>
+              {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+              {savedMessage && <p className="mt-4 text-sm text-green-600">{savedMessage}</p>}
             </div>
           </div>
 

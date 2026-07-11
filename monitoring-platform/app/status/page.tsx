@@ -3,8 +3,22 @@
 import { Endpoint } from '@/types';
 import { StatusBadge } from '@/components/badges';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { backendGet } from '@/lib/backend';
 
 const NOW = '2026-06-23T08:24:38.000Z';
+
+interface IntegrationStatus {
+  name: string;
+  status: string;
+  channel: string;
+}
+
+const defaultStatuses: IntegrationStatus[] = [
+  { name: 'Email', status: 'Connected', channel: 'ops@example.com' },
+  { name: 'Slack', status: 'Connected', channel: '#incidents' },
+  { name: 'Discord', status: 'Disconnected', channel: 'Monitoring Channel' },
+];
 
 const mockEndpoints: Endpoint[] = [
   {
@@ -86,6 +100,31 @@ const downCount = mockEndpoints.filter((e) => e.status === 'down').length;
 const degradedCount = mockEndpoints.filter((e) => e.status === 'degraded').length;
 
 export default function StatusPage() {
+  const [integrationStatuses, setIntegrationStatuses] = useState<IntegrationStatus[]>(defaultStatuses);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadIntegrationStatuses() {
+      try {
+        const [email, slack, discord] = await Promise.all([
+          backendGet<{ status: string; recipient?: string }>('/api/integrations/email/status'),
+          backendGet<{ status: string; channel: string }>('/api/integrations/slack/status'),
+          backendGet<{ status: string; channel: string }>('/api/integrations/discord/status'),
+        ]);
+
+        setIntegrationStatuses([
+          { name: 'Email', status: email.status, channel: email.recipient ?? 'ops@example.com' },
+          { name: 'Slack', status: slack.status, channel: slack.channel },
+          { name: 'Discord', status: discord.status, channel: discord.channel },
+        ]);
+      } catch {
+        setStatusError('Could not load integration statuses from backend.');
+      }
+    }
+
+    loadIntegrationStatuses();
+  }, []);
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -124,29 +163,63 @@ export default function StatusPage() {
           </div>
         </div>
 
-        {/* Services List */}
-        <div className="space-y-3">
-          {mockEndpoints.map((endpoint) => (
-            <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900">{endpoint.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
-                </div>
-                <div className="flex items-center gap-8">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 uppercase">Latency</p>
-                    <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
+        <div className="grid gap-6 mb-8 lg:grid-cols-[1fr_380px]">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Integration Status</h3>
+            {statusError ? (
+              <p className="text-sm text-red-600">{statusError}</p>
+            ) : (
+              <div className="space-y-4">
+                {integrationStatuses.map((integration) => (
+                  <div key={integration.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          integration.status.toLowerCase().includes('healthy') || integration.status.toLowerCase().includes('connected')
+                            ? 'bg-green-500'
+                            : integration.status.toLowerCase().includes('disconnected')
+                            ? 'bg-red-500'
+                            : 'bg-yellow-500'
+                        }`}
+                      ></span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">{integration.name}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-[220px]">{integration.channel}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 uppercase">{integration.status}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 uppercase">Uptime</p>
-                    <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
-                  </div>
-                  <StatusBadge status={endpoint.status} />
-                </div>
+                ))}
               </div>
+            )}
+          </div>
+
+          <div>
+            {/* Services List */}
+            <div className="space-y-3">
+              {mockEndpoints.map((endpoint) => (
+                <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">{endpoint.name}</h3>
+                      <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
+                    </div>
+                    <div className="flex items-center gap-8">
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500 uppercase">Latency</p>
+                        <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500 uppercase">Uptime</p>
+                        <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
+                      </div>
+                      <StatusBadge status={endpoint.status} />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
 
         {/* Footer */}

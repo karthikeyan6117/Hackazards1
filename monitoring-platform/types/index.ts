@@ -41,6 +41,12 @@ export interface Alert {
   };
 }
 
+export interface NotificationSettings {
+  channels: Alert[];
+  alert_delay_seconds: number;
+  mute_hours: string[];
+}
+
 export interface DashboardMetrics {
   totalEndpoints: number;
   activeIncidents: number;
