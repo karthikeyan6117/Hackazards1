@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Endpoint } from '@/types';
 import { StatusBadge } from '@/components/badges';
@@ -6,128 +6,45 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { backendGet } from '@/lib/backend';
 
-const NOW = '2026-06-23T08:24:38.000Z';
-
-interface IntegrationStatus {
-  name: string;
-  status: string;
-  channel: string;
-}
-
-const defaultStatuses: IntegrationStatus[] = [
-  { name: 'Email', status: 'Connected', channel: 'ops@example.com' },
-  { name: 'Slack', status: 'Connected', channel: '#incidents' },
-  { name: 'Discord', status: 'Disconnected', channel: 'Monitoring Channel' },
-];
-
-const mockEndpoints: Endpoint[] = [
-  {
-    id: '1',
-    name: 'API Server - Production',
-    url: 'https://api.example.com/health',
-    status: 'up',
-    uptime: 99.9,
-    lastChecked: NOW,
-    latency: 120,
-  },
-  {
-    id: '2',
-    name: 'Web Application',
-    url: 'https://app.example.com',
-    status: 'up',
-    uptime: 99.8,
-    lastChecked: NOW,
-    latency: 145,
-  },
-  {
-    id: '3',
-    name: 'Database Primary',
-    url: 'https://db-primary.internal/health',
-    status: 'degraded',
-    uptime: 98.5,
-    lastChecked: NOW,
-    latency: 250,
-  },
-  {
-    id: '4',
-    name: 'CDN Edge Server',
-    url: 'https://cdn.example.com/status',
-    status: 'down',
-    uptime: 97.2,
-    lastChecked: NOW,
-    latency: 0,
-  },
-  {
-    id: '5',
-    name: 'Auth Service',
-    url: 'https://auth.example.com/health',
-    status: 'up',
-    uptime: 99.95,
-    lastChecked: NOW,
-    latency: 89,
-  },
-  {
-    id: '6',
-    name: 'Webhook Service',
-    url: 'https://webhooks.example.com/status',
-    status: 'up',
-    uptime: 99.7,
-    lastChecked: NOW,
-    latency: 167,
-  },
-  {
-    id: '7',
-    name: 'Search Engine',
-    url: 'https://search.example.com/health',
-    status: 'up',
-    uptime: 99.8,
-    lastChecked: NOW,
-    latency: 234,
-  },
-  {
-    id: '8',
-    name: 'Cache Layer',
-    url: 'https://cache.example.com/ping',
-    status: 'up',
-    uptime: 99.99,
-    lastChecked: NOW,
-    latency: 23,
-  },
-];
-
-const upCount = mockEndpoints.filter((e) => e.status === 'up').length;
-const downCount = mockEndpoints.filter((e) => e.status === 'down').length;
-const degradedCount = mockEndpoints.filter((e) => e.status === 'degraded').length;
-
 export default function StatusPage() {
-  const [integrationStatuses, setIntegrationStatuses] = useState<IntegrationStatus[]>(defaultStatuses);
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadIntegrationStatuses() {
+    async function fetchStatus() {
       try {
-        const [email, slack, discord] = await Promise.all([
-          backendGet<{ status: string; recipient?: string }>('/api/integrations/email/status'),
-          backendGet<{ status: string; channel: string }>('/api/integrations/slack/status'),
-          backendGet<{ status: string; channel: string }>('/api/integrations/discord/status'),
-        ]);
-
-        setIntegrationStatuses([
-          { name: 'Email', status: email.status, channel: email.recipient ?? 'ops@example.com' },
-          { name: 'Slack', status: slack.status, channel: slack.channel },
-          { name: 'Discord', status: discord.status, channel: discord.channel },
-        ]);
-      } catch {
-        setStatusError('Could not load integration statuses from backend.');
+        const data = await backendGet<Endpoint[]>('/api/status');
+        setEndpoints(data);
+        setLastUpdated(new Date());
+      } catch (error) {
+        console.error('Failed to fetch status:', error);
+        setStatusError('Unable to load status from backend.');
+      } finally {
+        setLoading(false);
       }
     }
 
-    loadIntegrationStatuses();
+    fetchStatus();
+    const intervalId = setInterval(fetchStatus, 60000);
+    return () => clearInterval(intervalId);
   }, []);
+
+  const upCount = endpoints.filter((e) => e.status === 'up').length;
+  const downCount = endpoints.filter((e) => e.status === 'down').length;
+  const degradedCount = endpoints.filter((e) => e.status === 'degraded').length;
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading system status...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
@@ -142,12 +59,11 @@ export default function StatusPage() {
         </div>
       </div>
 
-      {/* Summary */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm text-gray-600 uppercase tracking-wide">Total Services</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{mockEndpoints.length}</p>
+            <p className="text-3xl font-bold text-gray-900 mt-2">{endpoints.length}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm text-gray-600 uppercase tracking-wide">Operational</p>
@@ -163,68 +79,40 @@ export default function StatusPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 mb-8 lg:grid-cols-[1fr_380px]">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Integration Status</h3>
-            {statusError ? (
-              <p className="text-sm text-red-600">{statusError}</p>
-            ) : (
-              <div className="space-y-4">
-                {integrationStatuses.map((integration) => (
-                  <div key={integration.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          integration.status.toLowerCase().includes('healthy') || integration.status.toLowerCase().includes('connected')
-                            ? 'bg-green-500'
-                            : integration.status.toLowerCase().includes('disconnected')
-                            ? 'bg-red-500'
-                            : 'bg-yellow-500'
-                        }`}
-                      ></span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">{integration.name}</p>
-                        <p className="text-xs text-gray-500 truncate max-w-[220px]">{integration.channel}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-500 uppercase">{integration.status}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {statusError && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+            {statusError}
           </div>
+        )}
 
-          <div>
-            {/* Services List */}
-            <div className="space-y-3">
-              {mockEndpoints.map((endpoint) => (
-                <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">{endpoint.name}</h3>
-                      <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
-                    </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500 uppercase">Latency</p>
-                        <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500 uppercase">Uptime</p>
-                        <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
-                      </div>
-                      <StatusBadge status={endpoint.status} />
-                    </div>
+        <div className="space-y-3">
+          {endpoints.map((endpoint) => (
+            <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between gap-6">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">{endpoint.name}</h3>
+                  <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-right">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Latency</p>
+                    <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Uptime</p>
+                    <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
+                  </div>
+                  <div className="flex flex-col items-end justify-center">
+                    <StatusBadge status={endpoint.status} />
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
 
-        {/* Footer */}
         <div className="mt-12 text-center text-gray-600">
-          <p className="text-sm">Last updated: {new Date(NOW).toUTCString()}</p>
+          <p className="text-sm">Last updated: {lastUpdated.toUTCString()}</p>
           <p className="text-sm">Updates every 60 seconds</p>
         </div>
       </div>

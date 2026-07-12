@@ -58,7 +58,15 @@ export default function SettingsPage() {
 
       try {
         const settings = await backendGet<NotificationSettings>('/api/notifications/settings');
-        setAlerts(settings.channels);
+        setAlerts(
+          settings.channels.map((channel) => ({
+            ...channel,
+            conditions: channel.conditions ?? {
+              severity: 'all',
+              incidentType: ['all'],
+            },
+          })),
+        );
         setAlertDelay(settings.alert_delay_seconds);
 
         if (settings.mute_hours.length > 0) {
