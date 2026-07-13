@@ -3,6 +3,7 @@
 import { DashboardMetrics, Endpoint, Incident } from '@/types';
 import { EndpointCard } from '@/components/endpoint-card';
 import Link from 'next/link';
+import { backendGet } from '@/lib/backend';
 
 import { useEffect, useState } from 'react';
 
@@ -15,15 +16,15 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [metricsRes, endpointsRes, incidentsRes] = await Promise.all([
-          fetch('http://localhost:8000/api/dashboard'),
-          fetch('http://localhost:8000/api/endpoints'),
-          fetch('http://localhost:8000/api/incidents'),
+        const [metricsData, endpointsData, incidentsData] = await Promise.all([
+          backendGet<DashboardMetrics>('/api/dashboard'),
+          backendGet<Endpoint[]>('/api/endpoints'),
+          backendGet<Incident[]>('/api/incidents'),
         ]);
 
-        if (metricsRes.ok) setMetrics(await metricsRes.json());
-        if (endpointsRes.ok) setEndpoints(await endpointsRes.json());
-        if (incidentsRes.ok) setIncidents(await incidentsRes.json());
+        setMetrics(metricsData);
+        setEndpoints(endpointsData);
+        setIncidents(incidentsData);
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {

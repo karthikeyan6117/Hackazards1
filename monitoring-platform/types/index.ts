@@ -31,7 +31,8 @@ export interface TimelineEvent {
 }
 
 export interface Alert {
-  id: string;
+  id?: string;
+  name?: 'email' | 'slack' | 'discord';
   type: 'email' | 'slack' | 'discord';
   enabled: boolean;
   target: string;

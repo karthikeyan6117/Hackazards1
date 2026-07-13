@@ -5,6 +5,25 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { backendGet, backendPut } from '@/lib/backend';
 
+const getAlertKey = (alert: Alert) =>
+  alert.id ?? `${alert.type}-${alert.target}-${alert.conditions.severity}-${alert.conditions.incidentType.join(',')}`;
+
+const normalizeChannel = (channel: Partial<Alert> & { name?: Alert['type']; enabled: boolean; target: string; conditions?: Alert['conditions'] }): Alert => {
+  const type = channel.type ?? channel.name ?? 'email';
+  const id = channel.id ?? `${type}-${channel.target}`;
+
+  return {
+    id,
+    type,
+    enabled: channel.enabled,
+    target: channel.target,
+    conditions: channel.conditions ?? {
+      severity: 'all',
+      incidentType: ['all'],
+    },
+  };
+};
+
 const defaultAlerts: Alert[] = [
   {
     id: '1',
@@ -58,15 +77,7 @@ export default function SettingsPage() {
 
       try {
         const settings = await backendGet<NotificationSettings>('/api/notifications/settings');
-        setAlerts(
-          settings.channels.map((channel) => ({
-            ...channel,
-            conditions: channel.conditions ?? {
-              severity: 'all',
-              incidentType: ['all'],
-            },
-          })),
-        );
+        setAlerts(settings.channels.map((channel) => normalizeChannel(channel)));
         setAlertDelay(settings.alert_delay_seconds);
 
         if (settings.mute_hours.length > 0) {
@@ -137,7 +148,7 @@ export default function SettingsPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Notification Channels</h2>
               <div className="space-y-6">
                 {alerts.map((alert) => (
-                  <div key={alert.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                  <div key={getAlertKey(alert)} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
@@ -167,7 +178,7 @@ export default function SettingsPage() {
                           <input
                             type="checkbox"
                             checked={alert.enabled}
-                            onChange={() => toggleAlert(alert.id)}
+                            onChange={() => toggleAlert(getAlertKey(alert))}
                             className="w-5 h-5 text-blue-600 rounded"
                           />
                           <span className="text-sm font-medium text-gray-700">Enable</span>
@@ -276,7 +287,7 @@ export default function SettingsPage() {
                 {alerts
                   .filter((a) => a.enabled)
                   .map((alert) => (
-                    <div key={alert.id} className="flex items-center justify-between">
+                    <div key={getAlertKey(alert)} className="flex items-center justify-between">
                       <span className="text-sm text-gray-700 capitalize">{alert.type}</span>
                       <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                     </div>

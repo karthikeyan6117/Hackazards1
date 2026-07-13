@@ -1,4 +1,4 @@
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 
 export async function backendFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BACKEND_URL}${path}`;
@@ -24,4 +24,8 @@ export async function backendGet<T>(path: string): Promise<T> {
 
 export async function backendPut<T>(path: string, body: unknown): Promise<T> {
   return backendFetch<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export async function backendPost<T>(path: string, body: unknown): Promise<T> {
+  return backendFetch<T>(path, { method: 'POST', body: JSON.stringify(body) });
 }
