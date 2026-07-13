@@ -2,99 +2,37 @@
 
 import { Incident } from '@/types';
 import Link from 'next/link';
-
-const NOW = '2026-06-23T08:24:38.000Z';
-
-const mockIncidents: Incident[] = [
-  {
-    id: '1',
-    endpointId: '4',
-    title: 'CDN Edge Server Outage',
-    description: 'CDN server in US-WEST region experiencing connectivity issues',
-    severity: 'critical',
-    status: 'investigating',
-    startTime: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-    rootCause: 'Load balancer misconfiguration detected in recent deployment',
-    confidenceScore: 0.87,
-    evidence: [
-      'High CPU utilization on edge nodes',
-      'Recent deployment at 2024-06-23 14:30 UTC',
-      'Correlated with increase in 502 errors',
-    ],
-    recommendations: [
-      'Rollback to previous stable deployment',
-      'Investigate load balancer configuration changes',
-      'Implement automated rollback on error threshold',
-    ],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-        event: 'Incident detected: CDN latency spike',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 2700000).toISOString(),
-        event: 'AI investigation started',
-        type: 'investigation',
-      },
-    ],
-  },
-  {
-    id: '2',
-    endpointId: '3',
-    title: 'Database Latency Degradation',
-    description: 'Primary database experiencing elevated query times',
-    severity: 'warning',
-    status: 'open',
-    startTime: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-    rootCause: 'Long-running query blocking connection pool',
-    confidenceScore: 0.92,
-    evidence: ['Query execution time: 45s average', 'Connection pool saturation at 95%'],
-    recommendations: ['Optimize slow query', 'Increase connection pool size', 'Implement query timeout'],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-        event: 'Latency spike detected',
-        type: 'detection',
-      },
-    ],
-  },
-  {
-    id: '3',
-    endpointId: '2',
-    title: 'API Response Timeout',
-    description: 'Multiple requests timing out on /api/users endpoint',
-    severity: 'warning',
-    status: 'resolved',
-    startTime: new Date(new Date(NOW).getTime() - 86400000).toISOString(),
-    endTime: new Date(new Date(NOW).getTime() - 82800000).toISOString(),
-    rootCause: 'Memory leak in connection handler',
-    confidenceScore: 0.85,
-    evidence: ['Memory usage increased over time', 'Restarting service resolved the issue'],
-    recommendations: ['Review connection handler implementation', 'Add memory monitoring alerts'],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 86400000).toISOString(),
-        event: 'Timeouts detected',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 83600000).toISOString(),
-        event: 'Root cause identified',
-        type: 'investigation',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 82800000).toISOString(),
-        event: 'Issue resolved',
-        type: 'resolution',
-      },
-    ],
-  },
-];
+import { backendGet } from '@/lib/backend';
+import { useEffect, useState } from 'react';
 
 export default function IncidentsPage() {
-  const activeIncidents = mockIncidents.filter((i) => i.status !== 'resolved');
-  const resolvedIncidents = mockIncidents.filter((i) => i.status === 'resolved');
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchIncidents() {
+      try {
+        const data = await backendGet<Incident[]>('/api/incidents');
+        setIncidents(data);
+      } catch (error) {
+        console.error('Failed to fetch incidents:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchIncidents();
+  }, []);
+
+  const activeIncidents = incidents.filter((i) => i.status !== 'resolved');
+  const resolvedIncidents = incidents.filter((i) => i.status === 'resolved');
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading incidents...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -153,10 +91,10 @@ export default function IncidentsPage() {
                           </span>
                         </div>
                       </div>
-                      {incident.rootCause && (
+                      {incident.confidenceScore != null && (
                         <div className="ml-4 text-right">
                           <p className="text-sm text-gray-600">AI Confidence</p>
-                          <p className="text-2xl font-bold text-blue-600">{(incident.confidenceScore! * 100).toFixed(0)}%</p>
+                          <p className="text-2xl font-bold text-blue-600">{(incident.confidenceScore * 100).toFixed(0)}%</p>
                         </div>
                       )}
                     </div>
@@ -199,6 +137,13 @@ export default function IncidentsPage() {
                 </Link>
               ))}
             </div>
+          </div>
+        )}
+
+        {incidents.length === 0 && (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-gray-600">
+            <h2 className="text-xl font-semibold text-gray-900">No incidents recorded</h2>
+            <p className="mt-3">Incidents will appear here when endpoints experience issues.</p>
           </div>
         )}
       </div>

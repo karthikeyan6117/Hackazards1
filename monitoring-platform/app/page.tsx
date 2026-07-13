@@ -3,7 +3,7 @@
 import { DashboardMetrics, Endpoint, Incident } from '@/types';
 import { EndpointCard } from '@/components/endpoint-card';
 import Link from 'next/link';
-import { backendGet } from '@/lib/backend';
+import { backendGet, backendPost } from '@/lib/backend';
 
 import { useEffect, useState } from 'react';
 
@@ -12,31 +12,62 @@ export default function DashboardPage() {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newEndpointName, setNewEndpointName] = useState('');
+  const [newEndpointUrl, setNewEndpointUrl] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addingEndpoint, setAddingEndpoint] = useState(false);
+
+  async function fetchData() {
+    try {
+      const [metricsData, endpointsData, incidentsData] = await Promise.all([
+        backendGet<DashboardMetrics>('/api/dashboard'),
+        backendGet<Endpoint[]>('/api/endpoints'),
+        backendGet<Incident[]>('/api/incidents'),
+      ]);
+
+      setMetrics(metricsData);
+      setEndpoints(endpointsData);
+      setIncidents(incidentsData);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [metricsData, endpointsData, incidentsData] = await Promise.all([
-          backendGet<DashboardMetrics>('/api/dashboard'),
-          backendGet<Endpoint[]>('/api/endpoints'),
-          backendGet<Incident[]>('/api/incidents'),
-        ]);
-
-        setMetrics(metricsData);
-        setEndpoints(endpointsData);
-        setIncidents(incidentsData);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
     // Optional: Set up polling
     const intervalId = setInterval(fetchData, 10000);
     return () => clearInterval(intervalId);
   }, []);
+
+  const addEndpoint = async () => {
+    setAddError(null);
+
+    if (!newEndpointName.trim() || !newEndpointUrl.trim()) {
+      setAddError('Please provide both a name and a URL for the endpoint.');
+      return;
+    }
+
+    setAddingEndpoint(true);
+
+    try {
+      await backendPost<Endpoint>('/api/endpoints', {
+        name: newEndpointName.trim(),
+        url: newEndpointUrl.trim(),
+      });
+
+      setNewEndpointName('');
+      setNewEndpointUrl('');
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to add endpoint:', error);
+      setAddError('Unable to add endpoint. Please verify the URL and try again.');
+    } finally {
+      setAddingEndpoint(false);
+    }
+  };
 
   if (loading || !metrics) {
     return (
@@ -99,6 +130,12 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Operational</p>
             <p className="text-4xl font-bold text-green-600 mt-2">{metrics.upEndpoints}</p>
+          </div>
+
+          {/* Degraded Endpoints */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Degraded</p>
+            <p className="text-4xl font-bold text-yellow-600 mt-2">{metrics.degradedEndpoints}</p>
           </div>
 
           {/* Down Endpoints */}
@@ -166,18 +203,57 @@ export default function DashboardPage() {
 
         {/* Endpoints Section */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Monitored Endpoints</h2>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Monitored Endpoints</h2>
+              <p className="text-gray-500 mt-1">Add services to monitor and view their health in the dashboard.</p>
+            </div>
             <Link href="/status" className="text-blue-600 hover:underline text-sm font-medium">
               View Status Page →
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {endpoints.map((endpoint) => (
-              <EndpointCard key={endpoint.id} endpoint={endpoint} recentIncidents={incidents.filter((i) => i.endpointId === endpoint.id)} />
 
-            ))}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add a new monitored endpoint</h3>
+            <div className="grid gap-4 md:grid-cols-3">
+              <input
+                type="text"
+                value={newEndpointName}
+                onChange={(event) => setNewEndpointName(event.target.value)}
+                placeholder="Endpoint name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <input
+                type="url"
+                value={newEndpointUrl}
+                onChange={(event) => setNewEndpointUrl(event.target.value)}
+                placeholder="https://example.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={addEndpoint}
+                disabled={addingEndpoint}
+                className="w-full md:w-auto bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+              >
+                {addingEndpoint ? 'Adding...' : 'Add Endpoint'}
+              </button>
+            </div>
+            {addError && <p className="mt-3 text-sm text-red-600">{addError}</p>}
           </div>
+
+          {endpoints.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
+              <p className="text-lg font-semibold text-gray-900">No endpoints configured yet.</p>
+              <p className="mt-2">Add an endpoint above to begin monitoring and populate your dashboard.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {endpoints.map((endpoint) => (
+                <EndpointCard key={endpoint.id} endpoint={endpoint} recentIncidents={incidents.filter((i) => i.endpointId === endpoint.id)} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -43,6 +43,7 @@ class DashboardMetrics(BaseModel):
     totalEndpoints: int
     activeIncidents: int
     upEndpoints: int
+    degradedEndpoints: int
     downEndpoints: int
     avgLatency: float
     uptimePercentage: float

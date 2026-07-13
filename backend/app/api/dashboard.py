@@ -35,7 +35,7 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
 
     avg_latency = (
         db.query(func.avg(Endpoint.average_latency))
-        .filter(Endpoint.average_latency > 0)
+        .filter(Endpoint.average_latency > 0, Endpoint.status == "up")
         .scalar()
         or 0.0
     )
@@ -49,6 +49,7 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
         totalEndpoints=total,
         activeIncidents=active,
         upEndpoints=up,
+        degradedEndpoints=degraded,
         downEndpoints=down,
         avgLatency=round(avg_latency, 2),
         uptimePercentage=uptime_pct,

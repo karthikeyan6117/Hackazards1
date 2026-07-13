@@ -34,10 +34,21 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    from app.models import Endpoint, Incident, MonitoringResult, TimelineEvent, User, Item  # noqa: F401
+    from app.models import (
+        Endpoint,
+        Incident,
+        MonitoringResult,
+        TimelineEvent,
+        User,
+        Item,
+    )  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
+
+    from app.db.seed import seed_demo_data
+
+    seed_demo_data()
 
 
 def get_db() -> Generator[Session, None, None]:

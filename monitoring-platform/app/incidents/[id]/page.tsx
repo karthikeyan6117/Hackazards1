@@ -3,9 +3,7 @@
 import { Incident } from '@/types';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { backendPost } from '@/lib/backend';
-
-const NOW = '2026-06-23T08:24:38.000Z';
+import { backendGet, backendPost } from '@/lib/backend';
 
 const inlineTokens = (text: string) => {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
@@ -267,121 +265,42 @@ const ReportModal = ({ markdown, onClose }: { markdown: string; onClose: () => v
   </div>
 );
 
-const mockIncidentsData: Record<string, Incident> = {
-  '1': {
-    id: '1',
-    endpointId: '4',
-    title: 'CDN Edge Server Outage',
-    description: 'CDN server in US-WEST region experiencing connectivity issues',
-    severity: 'critical',
-    status: 'investigating',
-    startTime: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-    rootCause: 'Load balancer misconfiguration detected in recent deployment',
-    confidenceScore: 0.87,
-    evidence: [
-      'High CPU utilization on edge nodes',
-      'Recent deployment at 2024-06-23 14:30 UTC',
-      'Correlated with increase in 502 errors',
-      'Configuration drift detected in load balancer state',
-      'Traffic pattern anomaly starting at 14:32 UTC',
-    ],
-    recommendations: [
-      'Rollback to previous stable deployment',
-      'Investigate load balancer configuration changes',
-      'Implement automated rollback on error threshold',
-      'Add configuration validation to deployment pipeline',
-      'Enable continuous monitoring of load balancer health',
-    ],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 3600000).toISOString(),
-        event: 'Incident detected: CDN latency spike to 5000ms',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 3300000).toISOString(),
-        event: 'Critical alert triggered for endpoint down',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 2700000).toISOString(),
-        event: 'AI investigation started - analyzing recent deployments',
-        type: 'investigation',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 2400000).toISOString(),
-        event: 'Root cause identified: load balancer misconfiguration',
-        type: 'investigation',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 2100000).toISOString(),
-        event: 'Recommended remediation steps generated',
-        type: 'update',
-      },
-    ],
-  },
-  '2': {
-    id: '2',
-    endpointId: '3',
-    title: 'Database Latency Degradation',
-    description: 'Primary database experiencing elevated query times',
-    severity: 'warning',
-    status: 'open',
-    startTime: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-    rootCause: 'Long-running query blocking connection pool',
-    confidenceScore: 0.92,
-    evidence: [
-      'Query execution time: 45s average (normal: 500ms)',
-      'Connection pool saturation at 95%',
-      'Specific query identified: SELECT * FROM large_table with missing index',
-      'Query performance degradation started 2 hours ago',
-      'No recent schema changes detected',
-    ],
-    recommendations: [
-      'Optimize slow query - add index on filter columns',
-      'Increase connection pool size from 50 to 100',
-      'Implement query timeout (currently: no timeout)',
-      'Add slow query monitoring to alerts',
-      'Review and optimize other similar queries',
-    ],
-    timeline: [
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 7200000).toISOString(),
-        event: 'Latency spike detected - p95 latency 2500ms',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 6900000).toISOString(),
-        event: 'Database warning threshold exceeded',
-        type: 'detection',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 6600000).toISOString(),
-        event: 'AI gathering query logs and connection metrics',
-        type: 'investigation',
-      },
-      {
-        timestamp: new Date(new Date(NOW).getTime() - 6300000).toISOString(),
-        event: 'Slow query identified in logs',
-        type: 'investigation',
-      },
-    ],
-  },
-};
-
 export default function IncidentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const incident = mockIncidentsData[id];
+  const [incident, setIncident] = useState<Incident | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportMarkdown, setReportMarkdown] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    async function fetchIncident() {
+      try {
+        const data = await backendGet<Incident>(`/api/incidents/${id}`);
+        setIncident(data);
+      } catch (error) {
+        console.error('Failed to fetch incident:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchIncident();
+  }, [id]);
+
+  useEffect(() => {
     if (!toastMessage) return undefined;
     const timer = window.setTimeout(() => setToastMessage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading incident...</div>
+      </main>
+    );
+  }
 
   if (!incident) {
     return (
@@ -419,9 +338,10 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
   };
 
   const mapIncidentToRequest = (incident: Incident) => {
+    const nowMs = Date.now();
     const durationMs = incident.endTime
       ? Math.max(0, new Date(incident.endTime).getTime() - new Date(incident.startTime).getTime())
-      : Math.max(1000, Math.round(new Date(NOW).getTime() - new Date(incident.startTime).getTime()));
+      : Math.max(1000, Math.round(nowMs - new Date(incident.startTime).getTime()));
 
     return {
       incident_id: incident.id,
@@ -508,7 +428,7 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
                 <h2 className="text-2xl font-bold text-gray-900">AI Analysis</h2>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Confidence Score</p>
-                  <p className="text-3xl font-bold text-blue-600">{(incident.confidenceScore! * 100).toFixed(0)}%</p>
+                  <p className="text-3xl font-bold text-blue-600">{incident.confidenceScore != null ? `${(incident.confidenceScore * 100).toFixed(0)}%` : 'N/A'}</p>
                 </div>
               </div>
 
@@ -599,7 +519,7 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
                       ? `${Math.round(
                           (new Date(incident.endTime).getTime() - new Date(incident.startTime).getTime()) / 60000
                         )} minutes`
-                      : `${Math.round((new Date(NOW).getTime() - new Date(incident.startTime).getTime()) / 60000)} minutes ongoing`}
+                      : `${Math.round((Date.now() - new Date(incident.startTime).getTime()) / 60000)} minutes ongoing`}
                   </p>
                 </div>
                 <div>

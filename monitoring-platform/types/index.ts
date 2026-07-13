@@ -52,6 +52,7 @@ export interface DashboardMetrics {
   totalEndpoints: number;
   activeIncidents: number;
   upEndpoints: number;
+  degradedEndpoints: number;
   downEndpoints: number;
   avgLatency: number;
   uptimePercentage: number;

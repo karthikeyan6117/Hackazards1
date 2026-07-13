@@ -85,31 +85,38 @@ export default function StatusPage() {
           </div>
         )}
 
-        <div className="space-y-3">
-          {endpoints.map((endpoint) => (
-            <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between gap-6">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-gray-900 truncate">{endpoint.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-right">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase">Latency</p>
-                    <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
+        {endpoints.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-gray-600">
+            <h2 className="text-xl font-semibold text-gray-900">No monitored services yet</h2>
+            <p className="mt-3">Add endpoints in the dashboard to start monitoring and populate this status page.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {endpoints.map((endpoint) => (
+              <div key={endpoint.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between gap-6">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">{endpoint.name}</h3>
+                    <p className="text-sm text-gray-500 mt-1 truncate">{endpoint.url}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase">Uptime</p>
-                    <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
-                  </div>
-                  <div className="flex flex-col items-end justify-center">
-                    <StatusBadge status={endpoint.status} />
+                  <div className="grid grid-cols-3 gap-4 text-right">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Latency</p>
+                      <p className="text-lg font-bold text-gray-900">{endpoint.latency}ms</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Uptime</p>
+                      <p className="text-lg font-bold text-gray-900">{endpoint.uptime.toFixed(2)}%</p>
+                    </div>
+                    <div className="flex flex-col items-end justify-center">
+                      <StatusBadge status={endpoint.status} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-12 text-center text-gray-600">
           <p className="text-sm">Last updated: {lastUpdated.toUTCString()}</p>
