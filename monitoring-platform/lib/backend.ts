@@ -29,3 +29,7 @@ export async function backendPut<T>(path: string, body: unknown): Promise<T> {
 export async function backendPost<T>(path: string, body: unknown): Promise<T> {
   return backendFetch<T>(path, { method: 'POST', body: JSON.stringify(body) });
 }
+
+export async function backendDelete<T>(path: string): Promise<T> {
+  return backendFetch<T>(path, { method: 'DELETE' });
+}
