@@ -229,27 +229,40 @@ Top 3 matches are injected into the AI prompt. The system prompt instructs the L
 
 > *Add screenshots of your running application here.*
 
-<!-- 
-Replace the placeholders below with actual screenshots:
+## 📸 Dashboard
 
-### Dashboard
-![Dashboard](screenshots/dashboard.png)
+![Dashboard](./screenshots/dashboard.png)
 
-### Status Page
-![Status Page](screenshots/status.png)
+---
 
-### Incident History
-![Incident History](screenshots/incidents.png)
+## 🚨 Incident History
 
-### Incident Analysis
-![Incident Analysis](screenshots/incident-detail.png)
+![Incident History](./screenshots/incidents.png)
 
-### AI Report
-![AI Report](screenshots/ai-report.png)
+---
 
-### AI Postmortem
-![AI Postmortem](screenshots/postmortem.png)
--->
+## 🔍 Incident Details
+
+![Incident Details](./screenshots/incident-details.png)
+
+---
+
+## 🤖 AI Generated Postmortem
+
+![Postmortem](./screenshots/postmortem.png)
+
+---
+
+## 📈 System Status
+
+![Status Page](./screenshots/status-page.png)
+
+---
+
+## ⚙️ Alert Configuration
+
+![Settings](./screenshots/settings.png)
+
 
 ## API Reference
 
